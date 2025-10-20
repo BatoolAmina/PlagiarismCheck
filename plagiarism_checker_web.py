@@ -8,6 +8,7 @@ import PyPDF2
 import docx
 from googlesearch import search
 import nltk
+import re
 
 @st.cache_resource
 def download_nltk_data():
@@ -44,6 +45,7 @@ def check_self_plagiarism(sentences):
         normalized_sentence = sentence.strip().lower()
         if len(normalized_sentence.split()) > 8:
             seen_sentences[normalized_sentence].append(i)
+    
     for sentence, lines in seen_sentences.items():
         if len(lines) > 1:
             original_sentence = next((s for s in sentences if s.strip().lower() == sentence), sentence)
@@ -75,90 +77,102 @@ def check_sentence_web(sentence):
     except Exception:
         return None
 
+def run_full_analysis(sentences):
+    results = {}
+    
+    duplicates = check_self_plagiarism(sentences)
+    for item in duplicates:
+        normalized_sentence = item['sentence'].strip().lower()
+        results[normalized_sentence] = {
+            "type": "🚨 Self-Plagiarism",
+            "source": f"Repeated {len(item['lines'])} times (lines: {', '.join(map(str, item['lines']))})",
+            "sentence": item['sentence']
+        }
+
+    for line_num, sentence in enumerate(sentences, 1):
+        clean_sentence = sentence.strip()
+        normalized_sentence = clean_sentence.lower()
+
+        if normalized_sentence in results or len(clean_sentence.split()) < 10:
+            continue
+        
+        academic_match = check_sentence_academic(clean_sentence)
+        if academic_match:
+            results[normalized_sentence] = {
+                "type": "🚨 Academic Match",
+                "source": f"[{academic_match['title']}]({academic_match['url']}) by {academic_match['authors']}",
+                "sentence": clean_sentence
+            }
+            continue
+        
+        web_match_url = check_sentence_web(clean_sentence)
+        if web_match_url:
+            results[normalized_sentence] = {
+                "type": "🚨 Web Match",
+                "source": web_match_url,
+                "sentence": clean_sentence
+            }
+            
+    return results
+
 st.set_page_config(page_title="Pro Plagiarism Checker", layout="wide", initial_sidebar_state="expanded")
+
+if 'results' not in st.session_state:
+    st.session_state.results = None
+if 'document_text' not in st.session_state:
+    st.session_state.document_text = ""
+if 'file_name' not in st.session_state:
+    st.session_state.file_name = ""
 
 with st.sidebar:
     st.title("About the Checker")
-    st.info(
-        "This tool provides a comprehensive plagiarism check by analyzing a document through three stages:\n"
-        "1.  **Self-Plagiarism**: Detects repeated sentences within the document itself.\n"
-        "2.  **Academic Search**: Queries the Semantic Scholar database for matches in millions of published papers.\n"
-        "3.  **Web Search**: Performs a Google search to find matches on any public website."
-    )
+    st.info("This tool provides a comprehensive plagiarism check. Upload your document, run the analysis, and review the results highlighted directly in the text.")
     st.warning("Note: This is a tool for preliminary checks. Always consult official plagiarism services for definitive reports.")
 
 st.title("🔬 Pro Plagiarism Checker")
-st.write("A professional interface for detecting potential plagiarism.")
 
-col1, col2 = st.columns([2, 1])
+uploaded_file = st.file_uploader("Upload your paper to begin", type=["pdf", "docx", "txt"])
 
-with col1:
-    uploaded_file = st.file_uploader("Upload your research paper (.pdf, .docx, or .txt)", type=["pdf", "docx", "txt"], label_visibility="collapsed")
-    start_button = st.button("Start Comprehensive Check", type="primary", use_container_width=True, disabled=not uploaded_file)
+if uploaded_file:
+    if uploaded_file.name != st.session_state.file_name:
+        st.session_state.results = None
+        st.session_state.document_text = read_document(uploaded_file)
+        st.session_state.file_name = uploaded_file.name
 
-with col2:
-    st.markdown("#### Summary")
-    total_sentences_placeholder = st.empty()
-    matches_found_placeholder = st.empty()
-    total_sentences_placeholder.metric("Total Sentences Analyzed", "N/A")
-    matches_found_placeholder.metric("Potential Matches Found", "N/A")
+    if st.session_state.document_text.startswith("ERROR:"):
+        st.error(st.session_state.document_text)
+    else:
+        if st.button("Start Comprehensive Check", type="primary", use_container_width=True):
+            with st.spinner("Performing full analysis... This may take several minutes."):
+                sentences = sent_tokenize(st.session_state.document_text)
+                st.session_state.results = run_full_analysis(sentences)
 
-st.markdown("---")
-
-if start_button:
-    with st.spinner("Reading and analyzing document... Please wait."):
-        main_document_text = read_document(uploaded_file)
-        if main_document_text.startswith("ERROR:"):
-            st.error(main_document_text)
-        else:
-            sentences = sent_tokenize(main_document_text)
-            total_sentences = len(sentences)
-            total_sentences_placeholder.metric("Total Sentences Analyzed", str(total_sentences))
+if st.session_state.results is not None:
+    st.markdown("---")
+    st.header("Analysis Results")
+    
+    results = st.session_state.results
+    if not results:
+        st.balloons()
+        st.success("### 🎉 Excellent! No potential plagiarism matches were found.")
+    else:
+        st.metric("Potential Matches Found", f"{len(results)}")
+        
+        st.subheader("Highlighted Document")
+        st.info("Sentences with potential matches are highlighted below. Expand the text to view the source.")
+        
+        sentences_to_display = sent_tokenize(st.session_state.document_text)
+        
+        for sentence in sentences_to_display:
+            clean_sentence = sentence.strip()
+            normalized_sentence = clean_sentence.lower()
             
-            matches_count = 0
-            matches_found_placeholder.metric("Potential Matches Found", "0")
-            
-            st.subheader("Results")
-            
-            st.markdown("##### Stage 1: Internal Repetitions")
-            duplicates = check_self_plagiarism(sentences)
-            if duplicates:
-                for item in duplicates:
-                    matches_count += 1
-                    with st.expander(f"🚨 Self-Plagiarism: Line repeated {len(item['lines'])} times"):
-                        st.markdown(f"**Sentence:** \"_{item['sentence']}_\"")
-                        st.markdown(f"**Found on lines:** {', '.join(map(str, item['lines']))}")
+            escaped_sentence = re.sub(r'<', '&lt;', re.sub(r'>', '&gt;', sentence))
+
+            if normalized_sentence in results:
+                match_info = results[normalized_sentence]
+                with st.expander(f"**{match_info['type']}** - {clean_sentence[:80]}..."):
+                    st.markdown(f'<p style="background-color:#8B0000; padding: 10px; border-radius: 5px;">{escaped_sentence}</p>', unsafe_allow_html=True)
+                    st.markdown(f"**Source:** {match_info['source']}")
             else:
-                st.success("✅ No significant internal repetitions found.")
-            
-            st.markdown("##### Stage 2 & 3: Academic & Web Search")
-            progress_bar = st.progress(0, text="Initializing check...")
-            
-            for line_num, sentence in enumerate(sentences, 1):
-                clean_sentence = sentence.strip()
-                if len(clean_sentence.split()) < 10:
-                    continue
-                
-                progress_bar.progress(line_num / total_sentences, text=f"Analyzing sentence {line_num}/{total_sentences}")
-                
-                academic_match = check_sentence_academic(clean_sentence)
-                if academic_match:
-                    matches_count += 1
-                    with st.expander(f"🚨 Academic Match: Found on Line {line_num}"):
-                        st.markdown(f"**Original Sentence:** \"_{clean_sentence}_\"")
-                        st.markdown(f"**Source:** [{academic_match['title']}]({academic_match['url']}) by {academic_match['authors']}")
-                    continue
-                
-                web_match_url = check_sentence_web(clean_sentence)
-                if web_match_url:
-                    matches_count += 1
-                    with st.expander(f"🚨 Web Match: Found on Line {line_num}"):
-                        st.markdown(f"**Original Sentence:** \"_{clean_sentence}_\"")
-                        st.markdown(f"**Source:** {web_match_url}")
-
-            progress_bar.empty()
-            matches_found_placeholder.metric("Potential Matches Found", str(matches_count))
-            
-            if matches_count == 0:
-                st.balloons()
-                st.success("### 🎉 Excellent! No potential plagiarism matches were found.")
+                st.write(escaped_sentence, unsafe_allow_html=True)
