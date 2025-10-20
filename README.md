@@ -34,6 +34,9 @@ streamlit run plagiarism_checker_web.py
 ## Setup & Run
 
 **Upload a File:** Use the file uploader to select a document.
+
 **Start Analysis:** Click the "Start Comprehensive Check" button.
+
 **View Results:** Explore the summary and result tabs.
+
 **Download:** Go to the "Download Report" tab to save the analysis.
