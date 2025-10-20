@@ -18,6 +18,7 @@ A Streamlit web application to detect potential plagiarism in documents by check
 ### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
+```
 
 ### 2. Install Dependencies
 streamlit run plagiarism_webapp.py
