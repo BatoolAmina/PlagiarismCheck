@@ -9,8 +9,16 @@ from nltk.tokenize import sent_tokenize
 import PyPDF2
 import docx
 from googlesearch import search
+import nltk
 
-# --- All the backend functions (same as before) ---
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+    nltk.download('punkt_tab', quiet=True)
 
 def read_document(uploaded_file):
     """Reads text from an uploaded file object."""
