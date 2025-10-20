@@ -25,7 +25,7 @@ pip install -r requirements.txt
 streamlit run plagiarism_webapp.py
 ```
 
-### 2.Run the app
+### 2. Run the app
 ```bash
 streamlit run plagiarism_checker_web.py
 ```
