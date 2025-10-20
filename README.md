@@ -21,18 +21,22 @@ pip install -r requirements.txt
 ```
 
 ### 2. Install Dependencies
+```bash
 streamlit run plagiarism_webapp.py
+```
 
 ### 2.Run the app
+```bash
 streamlit run plagiarism_checker_web.py
+```
 
 ---
 ## Setup & Run
 
-### Upload a File: Use the file uploader to select a document.
+**Upload a File:** Use the file uploader to select a document.
 
-### Start Analysis: Click the "Start Comprehensive Check" button.
+**Start Analysis:** Click the "Start Comprehensive Check" button.
 
-### View Results: Explore the summary and result tabs.
+**View Results:** Explore the summary and result tabs.
 
-### Download: Go to the "Download Report" tab to save the analysis.
+**Download:** Go to the "Download Report" tab to save the analysis.
